@@ -1,0 +1,25 @@
+SELECT * FROM `bizprofi_marsys_promotion_channel`
+
+SELECT `channel`.`NAME` AS `CHANNEL_NAME`, COUNT(*) AS `DEAL_COUNT`
+FROM `bizprofi_marsys_promotion_channel_deal` `channel_deal`
+INNER JOIN `bizprofi_marsys_promotion_channel` `channel` ON `channel`.`ID`=`channel_deal`.`CHANNEL_ID`
+INNER JOIN `b_crm_deal` `deal` ON `deal`.`ID`=`channel_deal`.`DEAL_ID`
+WHERE 
+    (
+        `channel`.`TREE_PATH` LIKE '%.7.%' OR
+        `channel`.`TREE_PATH` LIKE '%.11.%'
+    ) AND 
+    `deal`.`DATE_CREATE`>='2017-06-19 00:00:00'
+GROUP BY `channel`.`ID`
+
+
+SELECT `vs`.`PORTAL_NUMBER` AS `PORTAL_NUMBER`, COUNT(*) AS `DEAL_COUNT`
+FROM `b_voximplant_statistic` `vs`
+INNER JOIN `b_crm_lead` `lead` ON `lead`.`ID`=`vs`.`CRM_ENTITY_ID`
+INNER JOIN `b_crm_deal` `deal` ON `deal`.`LEAD_ID`=`lead`.`ID`
+WHERE 
+    `vs`.`INCOMING` IN (2, 3) AND
+    `vs`.`CRM_ENTITY_TYPE`='LEAD' AND
+    `vs`.`PORTAL_NUMBER`='78003507361' AND
+    `lead`.`DATE_CREATE`>='2017-06-19 00:00:00'
+GROUP BY `vs`.`PORTAL_NUMBER`

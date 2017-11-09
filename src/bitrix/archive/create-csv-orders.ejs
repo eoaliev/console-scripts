@@ -1,0 +1,45 @@
+<?php
+
+use Bizprofi\CrmExchange\XmlReader\DocumentReader;
+
+require_once($_SERVER["DOCUMENT_ROOT"] . "/bitrix/modules/main/classes/general/csv_data.php");
+
+$csvFile = $_SERVER['DOCUMENT_ROOT'] . '/upload/restore-orders.csv';
+$fp = fopen($csvFile, 'w+');
+@fclose($fp);
+
+$csv = new \CCSVData('R', false);
+$csv->SetFieldsType('R');
+$csv->SetDelimiter(';');
+$csv->SetFirstHeader(true);
+
+$csv->SaveFile($csvFile, ['ID', 'Номер 1С', 'Контрагенты', 'Сумма', 'Комментарий', 'Номер отгрузки', 'Товары']);
+
+$reader = new DocumentReader(3.01);
+$reader->open('/app/www/upload/documents-001.xml');
+
+$i = 0;
+foreach ($reader->getNodes() as $hash => $fields) {
+    $contractors = [];
+    foreach ($fields['CONTRACTORS'] as $contractor) {
+        $contractors[] = $contractor['ITEM_NAME'];
+    }
+
+    $items = [];
+    foreach ($fields['ITEMS'] as $item) {
+        $items[] = implode('; ', [$item['ITEM_NAME'], $item['QUANTITY'].' шт', number_format($item['AMOUNT'], 2, '.', ' ').' руб']);
+    }
+
+    $csv->SaveFile($csvFile, [
+        $fields['ID'],
+        $fields['1CID'],
+        implode("\n", $contractors),
+        number_format($fields['AMOUNT'], 2, '.', ' ').' руб',
+        $fields['COMMENT'],
+        $shipmentNumber,
+        implode("\n", $items),
+    ]);
+    $i++;
+}
+
+var_dump($i);

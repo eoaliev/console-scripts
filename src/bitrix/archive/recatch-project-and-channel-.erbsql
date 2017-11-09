@@ -1,0 +1,53 @@
+# Get deal ids is exists metric or incoming call
+SELECT `d`.`ID`
+FROM `b_crm_deal` `d`
+LEFT JOIN `bizprofi_marsys_promotion_metric_deal` `md` ON `md`.`DEAL_ID`=`d`.`ID`
+LEFT JOIN `b_crm_lead` `l` ON `l`.`ID`=`d`.`LEAD_ID`
+LEFT JOIN `b_voximplant_statistic` `vs` ON `vs`.`CRM_ENTITY_ID`=`l`.`ID`
+WHERE
+    `md`.`DEAL_ID` IS NOT NULL OR
+    (
+        `l`.`ID` IS NOT NULL AND 
+        `vs`.`CRM_ENTITY_TYPE`='LEAD' AND
+        `vs`.`INCOMING` IN (2, 3, 4)
+    )
+GROUP BY `d`.`ID`
+
+
+# Clear uf project id by project where project catch automatic
+UPDATE `b_uts_crm_deal` `ufd`
+INNER JOIN (
+    SELECT `d`.`ID`
+    FROM `b_crm_deal` `d`
+    LEFT JOIN `bizprofi_marsys_promotion_metric_deal` `md` ON `md`.`DEAL_ID`=`d`.`ID`
+    LEFT JOIN `b_crm_lead` `l` ON `l`.`ID`=`d`.`LEAD_ID`
+    LEFT JOIN `b_voximplant_statistic` `vs` ON `vs`.`CRM_ENTITY_ID`=`l`.`ID`
+    WHERE
+        `md`.`DEAL_ID` IS NOT NULL OR
+        (
+            `l`.`ID` IS NOT NULL AND 
+            `vs`.`CRM_ENTITY_TYPE`='LEAD' AND
+            `vs`.`INCOMING` IN (2, 3, 4)
+        )
+    GROUP BY `d`.`ID`
+) `d_ids` ON `d_ids`.`ID`=`ufd`.`VALUE_ID`
+SET `ufd`.`UF_MARSYS_PROJECT_ID`=1, `ufd`.`UF_MARSYS_CHANNEL_ID`=(SELECT `ID` FROM `bizprofi_marsys_promotion_channel` WHERE `SORT`=0 LIMIT 1);
+
+# Clear channel deal by project where project catch automatic
+UPDATE `bizprofi_marsys_promotion_channel_deal` `cd`
+INNER JOIN (
+    SELECT `d`.`ID`
+    FROM `b_crm_deal` `d`
+    LEFT JOIN `bizprofi_marsys_promotion_metric_deal` `md` ON `md`.`DEAL_ID`=`d`.`ID`
+    LEFT JOIN `b_crm_lead` `l` ON `l`.`ID`=`d`.`LEAD_ID`
+    LEFT JOIN `b_voximplant_statistic` `vs` ON `vs`.`CRM_ENTITY_ID`=`l`.`ID`
+    WHERE
+        `md`.`DEAL_ID` IS NOT NULL OR
+        (
+            `l`.`ID` IS NOT NULL AND 
+            `vs`.`CRM_ENTITY_TYPE`='LEAD' AND
+            `vs`.`INCOMING` IN (2, 3, 4)
+        )
+    GROUP BY `d`.`ID`
+) `d_ids` ON `d_ids`.`ID`=`cd`.`DEAL_ID`
+SET `cd`.`PROJECT_ID`=1, `cd`.`CHANNEL_ID`=(SELECT `ID` FROM `bizprofi_marsys_promotion_channel` WHERE `SORT`=0 LIMIT 1);
