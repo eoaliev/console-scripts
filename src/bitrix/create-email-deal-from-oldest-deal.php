@@ -5,6 +5,7 @@ use Bitrix\Main\Config;
 use Bitrix\Main\Db;
 use Bitrix\Main\Loader;
 use Magnifico\Site\Model;
+use Magnifico\Site\Parser;
 
 if (!Loader::includeModule('crm')) {
     var_dump('Not loaded crm');
