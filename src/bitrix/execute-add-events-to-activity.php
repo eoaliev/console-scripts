@@ -1,9 +1,6 @@
 <?php
 
-use Magnifico\EmailTracker\Model;
-use Magnifico\EmailTracker\Parser;
 use Bitrix\Main\Loader;
-use Bitrix\Main\Web\DOM;
 
 Loader::includeModule('crm');
 
