@@ -1,0 +1,10 @@
+---
+
+version: "2"
+
+services:
+  mysql:
+    image: "docker.magnifico.pro/realty/bitrix24:mysql"
+    network_mode: "host"
+    volumes:
+      - "/home/eoaliev/repositories:/home/eoaliev/repositories"
