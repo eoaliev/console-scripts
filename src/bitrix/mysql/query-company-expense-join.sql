@@ -1,63 +1,31 @@
 SELECT
     `c`.`ID` AS `ID`,
     (
-        SELECT SUM(`p`.`AMOUNT`)
+        SELECT SUM(DISTINCT `p`.`AMOUNT`)
         FROM `bizprofi_marsys_promotion_channel_payment_log` `p`
+        INNER JOIN `b_mp_company_binding` `cb` ON `cb`.`CHANNEL_ID`=`p`.`CHANNEL_ID` OR `cb`.`PROJECT_ID`=`p`.`PROJECT_ID`
         WHERE
-            `p`.`CHANNEL_ID` IN (
-                SELECT `cb`.`CHANNEL_ID`
-                FROM `b_mp_company_binding` `cb`
-                WHERE `cb`.`COMPANY_ID`=`c`.`ID`
-            )
-            OR `p`.`PROJECT_ID` IN (
-                SELECT `cb`.`PROJECT_ID`
-                FROM `b_mp_company_binding` `cb`
-                WHERE `cb`.`COMPANY_ID`=`c`.`ID`
-            )
+            `cb`.`COMPANY_ID`=`c`.`ID`
     ) /
     (
         SELECT COUNT(DISTINCT `cb`.`COMPANY_ID`)
         FROM `b_mp_company_binding` `cb`
+        INNER JOIN `b_mp_company_binding` `cbn` ON `cbn`.`CHANNEL_ID`=`cb`.`CHANNEL_ID` OR `cbn`.`PROJECT_ID`=`cb`.`PROJECT_ID`
         WHERE
-            `cb`.`CHANNEL_ID` IN (
-                SELECT `cbn`.`CHANNEL_ID`
-                FROM `b_mp_company_binding` `cbn`
-                WHERE `cbn`.`COMPANY_ID`=`c`.`ID`
-            )
-            OR `cb`.`PROJECT_ID` IN (
-                SELECT `cbn`.`PROJECT_ID`
-                FROM `b_mp_company_binding` `cbn`
-                WHERE `cbn`.`COMPANY_ID`=`c`.`ID`
-            )
+            `cbn`.`COMPANY_ID`=`c`.`ID`
     ) AS `EXPENSE`
 FROM `b_crm_company` `c`
-WHERE `c`.`ID`=1058 AND (
-        SELECT SUM(`p`.`AMOUNT`)
+WHERE (
+        SELECT SUM(DISTINCT `p`.`AMOUNT`)
         FROM `bizprofi_marsys_promotion_channel_payment_log` `p`
+        INNER JOIN `b_mp_company_binding` `cb` ON `cb`.`CHANNEL_ID`=`p`.`CHANNEL_ID` OR `cb`.`PROJECT_ID`=`p`.`PROJECT_ID`
         WHERE
-            `p`.`CHANNEL_ID` IN (
-                SELECT `cb`.`CHANNEL_ID`
-                FROM `b_mp_company_binding` `cb`
-                WHERE `cb`.`COMPANY_ID`=`c`.`ID`
-            )
-            AND `p`.`PROJECT_ID` IN (
-                SELECT `cb`.`PROJECT_ID`
-                FROM `b_mp_company_binding` `cb`
-                WHERE `cb`.`COMPANY_ID`=`c`.`ID`
-            )
-    ) -
+            `cb`.`COMPANY_ID`=`c`.`ID`
+    ) /
     (
         SELECT COUNT(DISTINCT `cb`.`COMPANY_ID`)
         FROM `b_mp_company_binding` `cb`
+        INNER JOIN `b_mp_company_binding` `cbn` ON `cbn`.`CHANNEL_ID`=`cb`.`CHANNEL_ID` OR `cbn`.`PROJECT_ID`=`cb`.`PROJECT_ID`
         WHERE
-            `cb`.`CHANNEL_ID` IN (
-                SELECT `cbn`.`CHANNEL_ID`
-                FROM `b_mp_company_binding` `cbn`
-                WHERE `cbn`.`COMPANY_ID`=`c`.`ID`
-            )
-            OR `cb`.`PROJECT_ID` IN (
-                SELECT `cbn`.`PROJECT_ID`
-                FROM `b_mp_company_binding` `cbn`
-                WHERE `cbn`.`COMPANY_ID`=`c`.`ID`
-            )
+            `cbn`.`COMPANY_ID`=`c`.`ID`
     ) > 0
