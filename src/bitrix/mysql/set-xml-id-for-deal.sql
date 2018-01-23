@@ -1,0 +1,17 @@
+-- SELECT
+--     MD5(CONCAT('CRM_DEAL', '_', `VALUE_ID`))
+-- FROM `b_uts_crm_deal`
+-- WHERE (`UF_XML_ID`='' OR `UF_XML_ID` IS NULL);
+
+UPDATE `b_uts_crm_deal`
+SET `UF_XML_ID`=MD5(CONCAT('CRM_DEAL', '_', `VALUE_ID`)), `UF_VERSION_1C`='AAAAAAAAAAA'
+WHERE (`UF_XML_ID`='' OR `UF_XML_ID` IS NULL);
+
+-- SELECT
+--     MD5(CONCAT('CRM_COMPANY', '_', `VALUE_ID`))
+-- FROM `b_uts_crm_company`
+-- WHERE (`UF_XML_ID`='' OR `UF_XML_ID` IS NULL);
+
+UPDATE `b_uts_crm_company`
+SET `UF_XML_ID`=MD5(CONCAT('CRM_COMPANY', '_', `VALUE_ID`)), `UF_VERSION_1C`='AAAAAAAAAAA'
+WHERE (`UF_XML_ID`='' OR `UF_XML_ID` IS NULL);

@@ -1,0 +1,17 @@
+.b-mp-promocode-mobile-toggler-wrapper {
+  display: none;
+}
+.b-mp-promocode-mobile-toggler-wrapper .b-mp-promocode-mobile-toggler-content {
+  display: none;
+}
+.b-mp-promocode-mobile-toggler-wrapper .b-mp-promocode-mobile-toggler-content .b-mp-promocode-mobile-toggler-description {
+  display: none;
+}
+.b-mp-promocode-mobile-toggler-wrapper .b-mp-promocode-mobile-toggler-content .b-mp-promocode-mobile-toggler-code {
+  display: none;
+}
+.b-mp-promocode-mobile-toggler-wrapper .b-mp-promocode-mobile-toggler-arrow {
+  display: none;
+}
+
+/*# sourceMappingURL=promocode-mobile-toggler.css.map */
