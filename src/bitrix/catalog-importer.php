@@ -1,115 +1,198 @@
 <?php
 
-require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/header.php");
+define('BX_SESSION_ID_CHANGE', false);
+define('BX_SKIP_POST_UNQUOTE', true);
+define('NO_AGENT_CHECK', true);
+define("STATISTIC_SKIP_ACTIVITY_CHECK", true);
 
-\CJSCore::init(['jquery']);
+require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/prolog_before.php");
 
 $request = \Bitrix\Main\Application::getInstance()->getContext()->getRequest();
 
-if ($request->isPost()) {
-    header('Content-Type: application/json; charset=utf-8');
-    $GLOBALS['APPLICATION']->restartBuffer();
+class MagnificoCatalogImporterPostController {
+    /**
+     * @var \Bitrix\Main\HttpRequest|null
+     */
+    protected $request = null;
 
-    if ($method === 'import') {
-        if ((float) $request->get('version') >= 2.10) {
-            $lastIndex = (int) $request->get('last_index') ?: 0;
-            if (!($step = $request->get('step')) || $step = 'catalog') {
-                if ($lastIndex === 0) {
-                    shell_exec('cp -R '.$_SERVER["DOCUMENT_ROOT"].$request->get('folder').' '.$_SERVER["DOCUMENT_ROOT"].'/upload/1c_catalog/');
-                }
-
-                if (!($items = preg_grep('/^import_/', scandir($_SERVER["DOCUMENT_ROOT"].$request->get('folder').'/000000002/')))) {
-                    echo \Bitrix\Main\Web\Json::encode(array(
-                        'status' => 'fail',
-                        'messages' => ['Нет файлов в переданной папке'],
-                    ), JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
-
-                    $GLOBALS['APPLICATION']->finalActions();
-                    die();
-                }
-
-                array_splice($items, 0, $lastIndex);
-
-                foreach ($items as $index => $filename) {
-                    echo \Bitrix\Main\Web\Json::encode(array(
-                        'status' => 'success',
-                        'data' => array(
-                            'filename' => str_replace('/upload/', '', $request->get('folder')).'/000000002/'.$filename,
-                            'step' => 'catalog',
-                            'last_index' => $index,
-                        ),
-                    ), JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
-
-                    $GLOBALS['APPLICATION']->finalActions();
-                    die();
-                }
-
-                $step = 'goods';
-                $lastIndex = 0;
-            }
-
-            if ($step === 'goods') {
-                $items = array_filter(array_unique(array_map('intval', preg_grep('/^\d+$/', scandir($_SERVER["DOCUMENT_ROOT"].$request->get('folder').'/000000002/goods/')))));
-                if ($lastIndex <= max($items)) {
-                    $items = preg_grep('/\.xml$/', scandir($_SERVER["DOCUMENT_ROOT"].$request->get('folder').'/000000002/goods/'.$lastIndex.'/'));
-
-                    array_splice($items, 0, (int) $request->get('g_last_index'));
-
-                    foreach ($items as $index => $filename) {
-                        echo \Bitrix\Main\Web\Json::encode(array(
-                            'status' => 'success',
-                            'data' => array(
-                                'filename' => str_replace('/upload/', '', $request->get('folder')).'/000000002/goods/'.$lastIndex.'/'.$filename,
-                                'step' => 'goods',
-                                'last_index' => $lastIndex,
-                                'g_last_index' => $index
-                            ),
-                        ), JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
-
-                        $GLOBALS['APPLICATION']->finalActions();
-                        die();
-                    }
-                }
-
-                $step = 'properties';
-                $lastIndex = 0;
-            }
-
-            if ($step === 'properties') {
-                $items = array_filter(array_unique(array_map('intval', preg_grep('/^\d+$/', scandir($_SERVER["DOCUMENT_ROOT"].$request->get('folder').'/000000002/properties/')))));
-                if ($lastIndex <= max($items)) {
-                    $items = preg_grep('/\.xml$/', scandir($_SERVER["DOCUMENT_ROOT"].$request->get('folder').'/000000002/properties/'.$lastIndex.'/'));
-
-                    array_splice($items, 0, (int) $request->get('p_last_index'));
-
-                    foreach ($items as $index => $filename) {
-                        echo \Bitrix\Main\Web\Json::encode(array(
-                            'status' => 'success',
-                            'data' => array(
-                                'filename' => str_replace('/upload/', '', $request->get('folder')).'/000000002/properties/'.$lastIndex.'/'.$filename,
-                                'step' => 'properties',
-                                'last_index' => $lastIndex,
-                                'p_last_index' => $index,
-                            ),
-                        ), JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
-
-                        $GLOBALS['APPLICATION']->finalActions();
-                        die();
-                    }
-                }
-            }
-        }
+    public function __construct()
+    {
+        $this->request = \Bitrix\Main\Application::getInstance()->getContext()->getRequest();
     }
 
-    echo \Bitrix\Main\Web\Json::encode([
-        'status' => 'final',
-    ], JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+    public function __invoke()
+    {
+        if (!$this->request->isPost()) {
+            return;
+        }
 
-    $GLOBALS['APPLICATION']->finalActions();
-    die();
+        $this->header();
+
+        $this->process();
+
+        $this->footer();
+        die();
+    }
+
+    protected function header()
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        $GLOBALS['APPLICATION']->restartBuffer();
+    }
+
+    protected function footer()
+    {
+        $GLOBALS['APPLICATION']->finalActions();
+    }
+
+    protected function output($data)
+    {
+        echo \Bitrix\Main\Web\Json::encode($data, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+    }
+
+    protected function success($data = array())
+    {
+        $this->output(array(
+            'status' => 'success',
+            'data' => $data ?: null,
+        ));
+    }
+
+    protected function fail($message)
+    {
+        $this->output(array(
+            'status' => 'fail',
+            'messages' => array($message),
+        ));
+    }
+
+    protected function process()
+    {
+        if ($this->request->get('method') === 'import') {
+            return $this->import();
+        }
+
+        if ($this->request->get('method') === 'cp') {
+            return $this->cp($this->request->get('folder'));
+        }
+
+        return $this->output(array('status' => 'final'));
+    }
+
+    protected function import()
+    {
+        if (2.10 > (float) $this->request->get('version')) {
+            return $this->output(array('status' => 'final'));
+        }
+
+        if (!($step = $this->request->get('step')) || $step = 'catalog') {
+            return $this->importCatalog($this->request->get('folder'), $this->request->get('current_index'));
+        }
+
+        if ($step === 'goods') {
+            return $this->importGoods($this->request->get('folder'), $this->request->get('current_index'), $this->request->get('sub_current_index'));
+        }
+
+        if ($step === 'properties') {
+            return $this->importProperties($this->request->get('folder'), $this->request->get('current_index'), $this->request->get('sub_current_index'));
+        }
+
+        return $this->output(array('status' => 'final'));
+    }
+
+    protected function importCatalog($folder, $currentIndex = 0)
+    {
+        if (!($items = preg_grep('/^import_/', scandir($_SERVER["DOCUMENT_ROOT"].$folder.'/000000002/')))) {
+            return $this->fail('Нет файлов в переданной папке');
+        }
+
+        array_splice($items, 0, $lastIndex);
+
+        foreach ($items as $index => $filename) {
+            return $this->success(array(
+                'filename' => str_replace('/upload/', '', $folder).'/000000002/'.$filename,
+                'step' => 'catalog',
+                'last_index' => $index,
+            ));
+        }
+
+        return $this->importGoods($folder);
+    }
+
+    protected function importGoods($folder, $currentIndex = 0, $subCurrentIndex = 0)
+    {
+        $items = array_values(array_filter(array_unique(array_map('intval', preg_grep('/^\d+$/', scandir($_SERVER["DOCUMENT_ROOT"].$folder.'/000000002/goods/'))))));
+        if (max(array_keys($items)) < (int) $currentIndex) {
+            return $this->importProperties($folder);
+        }
+
+        if (!($items = preg_grep('/\.xml$/', scandir($_SERVER["DOCUMENT_ROOT"].$folder.'/000000002/goods/'.$items[$currentIndex].'/')))) {
+            return $this->importProperties($folder);
+        }
+
+        array_splice($items, 0, (int) $subCurrentIndex);
+
+        foreach ($items as $index => $filename) {
+            return $this->success(array(
+                'filename' => str_replace('/upload/', '', $folder).'/000000002/goods/'.$items[$currentIndex].'/'.$filename,
+                'step' => 'goods',
+                'last_index' => $currentIndex,
+                'sub_last_index' => $index
+            ));
+        }
+
+        return $this->importProperties($folder);
+    }
+
+    protected function importProperties($folder, $currentIndex = 0, $subCurrentIndex = 0)
+    {
+        $items = array_values(array_filter(array_unique(array_map('intval', preg_grep('/^\d+$/', scandir($_SERVER["DOCUMENT_ROOT"].$folder.'/000000002/properties/'))))));
+        if (max(array_keys($items)) < (int) $currentIndex) {
+            return $this->importProperties($folder);
+        }
+
+        if (!($items = preg_grep('/\.xml$/', scandir($_SERVER["DOCUMENT_ROOT"].$folder.'/000000002/properties/'.$items[$currentIndex].'/')))) {
+            return $this->importProperties($folder);
+        }
+
+        array_splice($items, 0, (int) $subCurrentIndex);
+
+        foreach ($items as $index => $filename) {
+            return $this->success(array(
+                'filename' => str_replace('/upload/', '', $folder).'/000000002/properties/'.$items[$currentIndex].'/'.$filename,
+                'step' => 'properties',
+                'last_index' => $currentIndex,
+                'sub_last_index' => $index
+            ));
+        }
+
+        return $this->output(array('status' => 'final'));
+    }
+
+    protected function cp($folder)
+    {
+        shell_exec('cp -R '.$_SERVER["DOCUMENT_ROOT"].$folder.' '.$_SERVER["DOCUMENT_ROOT"].'/upload/1c_catalog/');
+
+        $this->success();
+    }
 }
+
+$post = new MagnificoCatalogImporterPostController();
+$post();
+
+require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/prolog_after.php");
+
+\CJSCore::init(['jquery']);
 ?>
-<form action="<?=POST_FORM_ACTION_URI?>" method="POST" class="initiator">
+<form action="<?=POST_FORM_ACTION_URI?>" method="POST" id="initiator">
+    <div>
+        <label>Логин</label>
+        <input type="text" name="login" value="<?=$request->get('login')?>" />
+    </div>
+    <div>
+        <label>Пароль</label>
+        <input type="text" name="password" value="<?=$request->get('password')?>" />
+    </div>
     <div>
         <label>Версия обмена</label>
         <input type="text" name="version" value="<?=$request->get('version')?>" />
@@ -121,17 +204,68 @@ if ($request->isPost()) {
 
     <input type="submit" name="submit" value="Начать" />
 </form>
-<pre class="log"></pre>
+<div id="log"></div>
 <script>
 $(function () {
-    var sessidName, sessidValue
 
-    var query = function (uri, data, callback, dataType) {
+    function MagnificoCatalogImporterPostController(params) {
+        this.initialize(params);
+    }
+
+    MagnificoCatalogImporterPostController.prototype.initialize = function (params) {
+        var self = this;
+
+        self.$initiator = $(params.initiator);
+        if (!self.$initiator.length) {
+            throw new Error('Initiator not found');
+        }
+
+        self.$log = $(params.log);
+        if (!self.$initiator.length) {
+            throw new Error('Log not found');
+        }
+
+        self.$initiator.on('submit', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            self.reauth(function () {
+                self.importQuery();
+            });
+        });
+    }
+
+    MagnificoCatalogImporterPostController.prototype.reauth = function (callback) {
+        var self = this;
+
+        callback = callback || function () {};
+
+        self.query('/bitrix/admin/1c_exchange.php?type=catalog&mode=checkauth', null, function (response) {
+            self.output(response);
+
+            self.query('/bitrix/admin/1c_exchange.php?type=catalog&mode=init&version=' + self.$initiator.find('[name="version"]').val() + '&sessid=' + BX.bitrix_sessid(), null, function (response) {
+                self.output(response);
+
+                self.query(self.$initiator.attr('action'), {
+                    folder: self.$initiator.find('[name="folder"]').val(),
+                    method: 'cp',
+                }, function (response) {
+                    self.output('Папка с файлами скопирована в директорию "/upload/1c_catalog/"');
+
+                    callback();
+                });
+            }, 'html');
+        }, 'html');
+    };
+
+    MagnificoCatalogImporterPostController.prototype.query = function (uri, data, callback, dataType) {
+        var self = this;
+
         data = data || null;
 
         dataType = dataType || 'json'
 
-         $.ajax({
+        $.ajax({
             url: uri,
             type: 'POST',
             data: data,
@@ -139,24 +273,37 @@ $(function () {
             xhrFields: {
                 withCredentials: true,
             },
+            beforeSend: function (xhr) {
+                xhr.setRequestHeader("Authorization", "Basic " + btoa(self.$initiator.find('[name="login"]').val() + ":" + self.$initiator.find('[name="password"]').val()));
+            },
         }).then(callback, function () {
-            alert('Что-то пошло не так');
+            self.fail('Что-то пошло не так');
             console.log(arguments);
         });
     };
 
-    var checkResponse = function (response) {
+    MagnificoCatalogImporterPostController.prototype.checkResponse = function (response) {
+        var self = this;
+
         if (typeof response !== 'object' || (response.status !== 'success' && response.status !== 'final')) {
-            alert(response.messages.join("\n"));
+            self.fail(response.messages.join("\n"));
             return false;
         }
 
         return true;
     };
 
-    var importFile = function (uri, callback) {
-        query(uri, null, function (data) {
+    MagnificoCatalogImporterPostController.prototype.importFile = function (uri, callback) {
+        var self = this;
+
+        self.query(uri, null, function (data) {
             if (data.indexOf('failure') !== -1) {
+                self.fail(data);
+                setTimeout(function () {
+                    self.reauth(function () {
+                        self.importFile(uri, callback);
+                    });
+                }, 500);
                 return;
             }
 
@@ -167,58 +314,61 @@ $(function () {
                 return;
             }
 
-            $('.log').html(data);
-            importFile(uri, callback);
+            self.output(data);
+            self.importFile(uri, callback);
         }, 'html');
     };
 
-    var importQuery = function (data) {
+    MagnificoCatalogImporterPostController.prototype.importQuery = function (data) {
+        var self = this;
+
         data = data || {};
 
-        query($('.initiator').attr('action'), {
-            version: $('.initiator').find('[name="version"]').val(),
-            folder: $('.initiator').find('[name="folder"]').val(),
+        self.query(self.$initiator.attr('action'), {
+            version: self.$initiator.find('[name="version"]').val(),
+            folder: self.$initiator.find('[name="folder"]').val(),
             method: 'import',
             step: data.step ? data.step: null,
-            last_index: data.last_index ? data.last_index: null,
-            g_last_index: data.g_last_index ? data.g_last_index: null,
-            p_last_index: data.p_last_index ? data.p_last_index: null,
+            current_index: typeof data.last_index !== 'undefined' && !isNaN(parseInt(data.last_index)) ? parseInt(data.last_index) + 1: null,
+            sub_current_index: typeof data.sub_last_index !== 'undefined' && !isNaN(parseInt(data.sub_last_index)) ? parseInt(data.sub_last_index) + 1: null,
         }, function (response) {
-            if (!checkResponse(response)) {
+            if (!self.checkResponse(response)) {
                 return;
             }
 
             if (response.status === 'final') {
-                $('.log').html('Импортированно');
+                self.success('Импортированно');
                 return;
             }
 
             var uri = '/bitrix/admin/1c_exchange.php?type=catalog&mode=import'
-                 + '&version=' + $('.initiator').find('[name="version"]').val()
+                 + '&version=' + self.$initiator.find('[name="version"]').val()
                  + '&filename=' + response.data.filename
                  + '&sessid=' + BX.bitrix_sessid();
 
-            importFile(uri, function () {
-                importQuery(response.data);
+            self.importFile(uri, function () {
+                self.importQuery(response.data);
             });
         });
     };
 
+    MagnificoCatalogImporterPostController.prototype.output = function (message, color) {
+        color = color || 'gray';
+        this.$log.prepend('<pre style="color: ' + color + '">' + message + '</pre>');
+        this.$log.prepend('<pre style="color: gray">---------</pre>');
+    };
 
+    MagnificoCatalogImporterPostController.prototype.success = function (message) {
+        this.output(message, 'green');
+    };
 
-    $('.initiator').on('submit', function (e) {
-        e.preventDefault();
-        e.stopPropagation();
+    MagnificoCatalogImporterPostController.prototype.fail = function (message) {
+        this.output(message, 'red');
+    };
 
-        query('/bitrix/admin/1c_exchange.php?type=catalog&mode=checkauth', null, function (response) {
-            $('.log').html(response);
-
-            query('/bitrix/admin/1c_exchange.php?type=catalog&mode=init&version=' + $('.initiator').find('[name="version"]').val() + '&sessid=' + BX.bitrix_sessid(), null, function (response) {
-                $('.log').html(response);
-
-                importQuery();
-            }, 'html');
-        }, 'html');
+    window.postController = new MagnificoCatalogImporterPostController({
+        initiator: '#initiator',
+        log: '#log',
     });
 });
 </script>
