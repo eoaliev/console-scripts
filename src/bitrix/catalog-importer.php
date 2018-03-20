@@ -106,7 +106,7 @@ class MagnificoCatalogImporterPostController {
             return $this->fail('Нет файлов в переданной папке');
         }
 
-        array_splice($items, 0, $lastIndex);
+        array_splice($items, 0, $currentIndex);
 
         foreach ($items as $index => $filename) {
             return $this->success(array(
