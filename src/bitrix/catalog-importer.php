@@ -73,7 +73,7 @@ class MagnificoCatalogImporterPostController {
         }
 
         if ($this->request->get('method') === 'cp') {
-            return $this->cp($this->request->get('folder'));
+            return $this->cp($this->request->get('filepath'), true);
         }
 
         return $this->output(array('status' => 'final'));
@@ -109,6 +109,8 @@ class MagnificoCatalogImporterPostController {
         array_splice($items, 0, $currentIndex);
 
         foreach ($items as $index => $filename) {
+            $this->cp(str_replace('/upload/', '', $folder).'/000000002/'.$filename);
+
             return $this->success(array(
                 'filename' => str_replace('/upload/', '', $folder).'/000000002/'.$filename,
                 'step' => 'catalog',
@@ -126,15 +128,18 @@ class MagnificoCatalogImporterPostController {
             return $this->importProperties($folder);
         }
 
-        if (!($items = preg_grep('/\.xml$/', scandir($_SERVER["DOCUMENT_ROOT"].$folder.'/000000002/goods/'.$items[$currentIndex].'/')))) {
+        $subFolder = $items[$currentIndex];
+        if (!($items = preg_grep('/\.xml$/', scandir($_SERVER["DOCUMENT_ROOT"].$folder.'/000000002/goods/'.$subFolder.'/')))) {
             return $this->importProperties($folder);
         }
 
         array_splice($items, 0, (int) $subCurrentIndex);
 
         foreach ($items as $index => $filename) {
+            $this->cp(str_replace('/upload/', '', $folder).'/000000002/goods/'.$subFolder.'/'.$filename);
+
             return $this->success(array(
-                'filename' => str_replace('/upload/', '', $folder).'/000000002/goods/'.$items[$currentIndex].'/'.$filename,
+                'filename' => str_replace('/upload/', '', $folder).'/000000002/goods/'.$subFolder.'/'.$filename,
                 'step' => 'goods',
                 'last_index' => $currentIndex,
                 'sub_last_index' => $index
@@ -151,15 +156,18 @@ class MagnificoCatalogImporterPostController {
             return $this->importProperties($folder);
         }
 
-        if (!($items = preg_grep('/\.xml$/', scandir($_SERVER["DOCUMENT_ROOT"].$folder.'/000000002/properties/'.$items[$currentIndex].'/')))) {
+        $subFolder = $items[$currentIndex];
+        if (!($items = preg_grep('/\.xml$/', scandir($_SERVER["DOCUMENT_ROOT"].$folder.'/000000002/properties/'.$subFolder.'/')))) {
             return $this->importProperties($folder);
         }
 
         array_splice($items, 0, (int) $subCurrentIndex);
 
         foreach ($items as $index => $filename) {
+            $this->cp(str_replace('/upload/', '', $folder).'/000000002/properties/'.$subFolder.'/'.$filename);
+
             return $this->success(array(
-                'filename' => str_replace('/upload/', '', $folder).'/000000002/properties/'.$items[$currentIndex].'/'.$filename,
+                'filename' => str_replace('/upload/', '', $folder).'/000000002/properties/'.$subFolder.'/'.$filename,
                 'step' => 'properties',
                 'last_index' => $currentIndex,
                 'sub_last_index' => $index
@@ -169,11 +177,15 @@ class MagnificoCatalogImporterPostController {
         return $this->output(array('status' => 'final'));
     }
 
-    protected function cp($folder)
+    protected function cp($filepath, $output = false)
     {
-        shell_exec('cp -R '.$_SERVER["DOCUMENT_ROOT"].$folder.' '.$_SERVER["DOCUMENT_ROOT"].'/upload/1c_catalog/');
+        // echo "<pre>", var_dump(dirname($filepath)), "</pre>";
+        shell_exec('mkdir -p '.$_SERVER["DOCUMENT_ROOT"].'/upload/1c_catalog/'.dirname($filepath));
+        shell_exec('cp -R '.$_SERVER["DOCUMENT_ROOT"].'/upload/'.$filepath.' '.$_SERVER["DOCUMENT_ROOT"].'/upload/1c_catalog/'.dirname($filepath));
 
-        $this->success();
+        if ($output === true) {
+            $this->success();
+        }
     }
 }
 
@@ -235,9 +247,10 @@ $(function () {
         });
     }
 
-    MagnificoCatalogImporterPostController.prototype.reauth = function (callback) {
+    MagnificoCatalogImporterPostController.prototype.reauth = function (callback, filename) {
         var self = this;
 
+        filename = filename || '';
         callback = callback || function () {};
 
         self.query('/bitrix/admin/1c_exchange.php?type=catalog&mode=checkauth', null, function (response) {
@@ -246,11 +259,16 @@ $(function () {
             self.query('/bitrix/admin/1c_exchange.php?type=catalog&mode=init&version=' + self.$initiator.find('[name="version"]').val() + '&sessid=' + BX.bitrix_sessid(), null, function (response) {
                 self.output(response);
 
+                if (!filename.length) {
+                    callback();
+                    return;
+                }
+
                 self.query(self.$initiator.attr('action'), {
-                    folder: self.$initiator.find('[name="folder"]').val(),
+                    filepath: filename,
                     method: 'cp',
                 }, function (response) {
-                    self.output('Папка с файлами скопирована в директорию "/upload/1c_catalog/"');
+                    self.output('Файл ' + filename + ' скопирован');
 
                     callback();
                 });
@@ -293,16 +311,23 @@ $(function () {
         return true;
     };
 
-    MagnificoCatalogImporterPostController.prototype.importFile = function (uri, callback) {
+    MagnificoCatalogImporterPostController.prototype.importFile = function (filename, callback) {
         var self = this;
+
+        filename = filename || '';
+
+        var uri = '/bitrix/admin/1c_exchange.php?type=catalog&mode=import'
+                 + '&version=' + self.$initiator.find('[name="version"]').val()
+                 + '&filename=' + filename
+                 + '&sessid=' + BX.bitrix_sessid();
 
         self.query(uri, null, function (data) {
             if (data.indexOf('failure') !== -1) {
                 self.fail(data);
                 setTimeout(function () {
                     self.reauth(function () {
-                        self.importFile(uri, callback);
-                    });
+                        self.importFile(filename, callback);
+                    }, filename);
                 }, 500);
                 return;
             }
@@ -315,7 +340,7 @@ $(function () {
             }
 
             self.output(data);
-            self.importFile(uri, callback);
+            self.importFile(filename, callback);
         }, 'html');
     };
 
@@ -341,12 +366,7 @@ $(function () {
                 return;
             }
 
-            var uri = '/bitrix/admin/1c_exchange.php?type=catalog&mode=import'
-                 + '&version=' + self.$initiator.find('[name="version"]').val()
-                 + '&filename=' + response.data.filename
-                 + '&sessid=' + BX.bitrix_sessid();
-
-            self.importFile(uri, function () {
+            self.importFile(response.data.filename, function () {
                 self.importQuery(response.data);
             });
         });
