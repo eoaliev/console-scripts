@@ -85,7 +85,7 @@ class MagnificoCatalogImporterPostController {
             return $this->output(array('status' => 'final'));
         }
 
-        if (!($step = $this->request->get('step')) || $step = 'catalog') {
+        if (!($step = $this->request->get('step')) || $step === 'catalog') {
             return $this->importCatalog($this->request->get('folder'), $this->request->get('current_index'));
         }
 
@@ -102,7 +102,7 @@ class MagnificoCatalogImporterPostController {
 
     protected function importCatalog($folder, $currentIndex = 0)
     {
-        if (!($items = preg_grep('/^import_/', scandir($_SERVER["DOCUMENT_ROOT"].$folder.'/000000002/')))) {
+        if (!($items = array_values(preg_grep('/^import_/', scandir($_SERVER["DOCUMENT_ROOT"].$folder.'/000000002/'))))) {
             return $this->fail('Нет файлов в переданной папке');
         }
 
@@ -129,7 +129,7 @@ class MagnificoCatalogImporterPostController {
         }
 
         $subFolder = $items[$currentIndex];
-        if (!($items = preg_grep('/\.xml$/', scandir($_SERVER["DOCUMENT_ROOT"].$folder.'/000000002/goods/'.$subFolder.'/')))) {
+        if (!($items = array_values(preg_grep('/\.xml$/', scandir($_SERVER["DOCUMENT_ROOT"].$folder.'/000000002/goods/'.$subFolder.'/'))))) {
             return $this->importProperties($folder);
         }
 
@@ -157,7 +157,7 @@ class MagnificoCatalogImporterPostController {
         }
 
         $subFolder = $items[$currentIndex];
-        if (!($items = preg_grep('/\.xml$/', scandir($_SERVER["DOCUMENT_ROOT"].$folder.'/000000002/properties/'.$subFolder.'/')))) {
+        if (!($items = array_values(preg_grep('/\.xml$/', scandir($_SERVER["DOCUMENT_ROOT"].$folder.'/000000002/properties/'.$subFolder.'/'))))) {
             return $this->importProperties($folder);
         }
 
@@ -179,7 +179,6 @@ class MagnificoCatalogImporterPostController {
 
     protected function cp($filepath, $output = false)
     {
-        // echo "<pre>", var_dump(dirname($filepath)), "</pre>";
         shell_exec('mkdir -p '.$_SERVER["DOCUMENT_ROOT"].'/upload/1c_catalog/'.dirname($filepath));
         shell_exec('cp -R '.$_SERVER["DOCUMENT_ROOT"].'/upload/'.$filepath.' '.$_SERVER["DOCUMENT_ROOT"].'/upload/1c_catalog/'.dirname($filepath));
 
@@ -216,6 +215,10 @@ require_once($_SERVER["DOCUMENT_ROOT"]."/bitrix/modules/main/include/prolog_afte
 
     <input type="submit" name="submit" value="Начать" />
 </form>
+<br />
+<div id="loader" style="display:none;">
+    <img src="/bitrix/images/main/composite/loading.gif" alt="" />
+</div>
 <div id="log"></div>
 <script>
 $(function () {
@@ -233,13 +236,20 @@ $(function () {
         }
 
         self.$log = $(params.log);
-        if (!self.$initiator.length) {
+        if (!self.$log.length) {
             throw new Error('Log not found');
+        }
+
+        self.$loader = $(params.loader);
+        if (!self.$loader.length) {
+            throw new Error('Loader not found');
         }
 
         self.$initiator.on('submit', function (e) {
             e.preventDefault();
             e.stopPropagation();
+
+            self.$loader.show();
 
             self.reauth(function () {
                 self.importQuery();
@@ -339,7 +349,7 @@ $(function () {
                 return;
             }
 
-            self.output(data);
+            self.output(filename + '\n' + data);
             self.importFile(filename, callback);
         }, 'html');
     };
@@ -362,6 +372,7 @@ $(function () {
             }
 
             if (response.status === 'final') {
+                self.$loader.hide();
                 self.success('Импортированно');
                 return;
             }
@@ -389,6 +400,7 @@ $(function () {
     window.postController = new MagnificoCatalogImporterPostController({
         initiator: '#initiator',
         log: '#log',
+        loader: '#loader',
     });
 });
 </script>
