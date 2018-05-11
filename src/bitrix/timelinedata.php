@@ -42,9 +42,9 @@ foreach ($times as $interval) {
     $final = \Bitrix\Main\Type\Datetime::createFromTimestamp(0)->setTime($hour, $minute, $seconds);
 
     $segment = ceil(($start->getTimestamp() - $prev) / 60);
-    if (0 < $diff && $segment < 0) {
+    if (0 < $diff && 0 < $segment) {
         for ($i = $diff; $i < $diff + $segment; $i++) {
-            $coordinates[] = [$i, 0];
+            $coordinates[] = [$i, 0, 0];
         }
 
         $diff += $segment;
@@ -53,10 +53,10 @@ foreach ($times as $interval) {
     $sign = 1;
     $segment = ceil(($final->getTimestamp() - $start->getTimestamp()) / 60);
     for ($i = $diff; $i < $diff + $segment; $i++) {
-        $coordinates[] = [$i, $sign * 1];
+        $coordinates[] = [$i, $sign, $sign * -1];
         $sign *= -1;
     }
-    
+
     $diff += $segment;
     $prev = $final->getTimestamp();
 }
